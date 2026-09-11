@@ -5,26 +5,32 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from homeassistant.components import frontend, panel_custom
+import voluptuous as vol
+
+from homeassistant.components import frontend, panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 
 from .const import DEFAULT_OPTIONS, DOMAIN, PANEL_ICON, PANEL_PATH, PANEL_TITLE, STATIC_URL
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[str] = []
+CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.2.0"
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
+    websocket_api.async_register_command(hass, ws_config)
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN]["entry"] = entry
     await _async_register_static(hass)
     await _async_register_panel(hass, entry)
+    await _async_register_lovelace(hass)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
@@ -38,6 +44,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    hass.data[DOMAIN]["entry"] = entry
     await _async_register_panel(hass, entry)
 
 
@@ -49,6 +56,20 @@ async def _async_register_static(hass: HomeAssistant) -> None:
         [StaticPathConfig(STATIC_URL, str(www), cache_headers=False)]
     )
     hass.data[DOMAIN]["static"] = True
+
+
+async def _async_register_lovelace(hass: HomeAssistant) -> None:
+    if hass.data[DOMAIN].get("lovelace"):
+        return
+    try:
+        resources = hass.data["lovelace"].resources
+        items = resources.async_items() if hasattr(resources, "async_items") else []
+        already = any(str(item.get("url", "")).startswith(STATIC_URL) for item in items)
+        if not already:
+            await resources.async_create_item({"res_type": "module", "url": CARD_URL})
+        hass.data[DOMAIN]["lovelace"] = True
+    except Exception:  # noqa: BLE001
+        _LOGGER.debug("Lovelace resource not auto-registered; add %s as a module", CARD_URL)
 
 
 async def _async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -66,16 +87,29 @@ async def _async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None
         module_url=f"{STATIC_URL}/panel.js",
         embed_iframe=False,
         require_admin=False,
-        config={
-            "frontend_url": opts.get("frontend_url") or "",
-            "domains": opts.get("domains") or DEFAULT_OPTIONS["domains"],
-            "one_per_device": bool(opts.get("one_per_device", True)),
-            "include_unassigned": bool(opts.get("include_unassigned", True)),
-            "include_hidden": bool(opts.get("include_hidden", False)),
-            "include_diagnostics": bool(opts.get("include_diagnostics", False)),
-            "show_unavailable": bool(opts.get("show_unavailable", True)),
-            "battery_alert": int(opts.get("battery_alert", 20)),
-            "max_per_area": int(opts.get("max_per_area", 18)),
-            "skip_intro": bool(opts.get("skip_intro", True)),
-        },
+        config=_panel_config(opts),
     )
+
+
+def _panel_config(opts: dict) -> dict:
+    return {
+        "frontend_url": opts.get("frontend_url") or "",
+        "domains": opts.get("domains") or DEFAULT_OPTIONS["domains"],
+        "one_per_device": bool(opts.get("one_per_device", True)),
+        "include_unassigned": bool(opts.get("include_unassigned", True)),
+        "include_hidden": bool(opts.get("include_hidden", False)),
+        "include_diagnostics": bool(opts.get("include_diagnostics", False)),
+        "show_unavailable": bool(opts.get("show_unavailable", True)),
+        "battery_alert": int(opts.get("battery_alert", 20)),
+        "max_per_area": int(opts.get("max_per_area", 18)),
+        "skip_intro": bool(opts.get("skip_intro", True)),
+    }
+
+
+@websocket_api.websocket_command({vol.Required("type"): "outpost/config"})
+@websocket_api.async_response
+@callback
+def ws_config(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
+    entry = hass.data.get(DOMAIN, {}).get("entry")
+    opts = {**DEFAULT_OPTIONS, **(entry.options if entry else {})}
+    connection.send_result(msg["id"], _panel_config(opts))

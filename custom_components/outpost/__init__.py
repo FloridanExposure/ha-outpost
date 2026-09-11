@@ -16,7 +16,7 @@ from .const import DEFAULT_OPTIONS, DOMAIN, PANEL_ICON, PANEL_PATH, PANEL_TITLE,
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[str] = []
-CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.2.0"
+CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.2.1"
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:

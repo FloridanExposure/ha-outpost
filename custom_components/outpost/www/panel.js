@@ -6,7 +6,10 @@ class OutpostColonyPanel extends HTMLElement {
     this._hass = null;
     this._panel = null;
     this._iframe = null;
+    this._unsub = null;
+    this._beat = null;
     this.attachShadow({ mode: "open" });
+    window.addEventListener("message", (ev) => this._onMsg(ev));
   }
 
   set hass(hass) {
@@ -27,20 +30,15 @@ class OutpostColonyPanel extends HTMLElement {
     const url = String(cfg.frontend_url || "").trim();
     if (url) {
       const clean = url.replace(/\/+$/, "");
-      const sep = clean.includes("?") ? "&" : "?";
-      return `${clean}${sep}ha_panel=1`;
+      const withScheme = clean.includes("://") ? clean : `https://${clean}`;
+      const sep = withScheme.includes("?") ? "&" : "?";
+      return `${withScheme}${sep}ha_panel=1`;
     }
     return `${location.origin}/outpost-static/index.html?ha_panel=1`;
   }
 
   _mount() {
-    if (this._iframe) {
-      const next = this._src();
-      if (this._iframe.src !== next && !this._iframe.src.startsWith(next.split("?")[0])) {
-        this._iframe.src = next;
-      }
-      return;
-    }
+    if (this._iframe) return;
     const root = this.shadowRoot;
     root.innerHTML = `
       <style>
@@ -54,30 +52,85 @@ class OutpostColonyPanel extends HTMLElement {
     iframe.addEventListener("load", () => this._push());
     root.appendChild(iframe);
     this._iframe = iframe;
-    window.addEventListener("message", (ev) => {
-      if (ev.data && ev.data.type === "outpost/ready") this._push();
-    });
+    this._beat = window.setInterval(() => this._push(), 1200);
+  }
+
+  _target() {
+    return this._iframe && this._iframe.contentWindow;
   }
 
   _push() {
-    if (!this._iframe || !this._iframe.contentWindow || !this._hass) return;
+    const win = this._target();
+    if (!win || !this._hass) return;
     const cfg = this._panel?.config || {};
-    let token = "";
-    try {
-      token = this._hass.auth.data.access_token;
-    } catch {
-      return;
-    }
-    const hassUrl = this._hass.hassUrl || location.origin;
-    this._iframe.contentWindow.postMessage(
+    win.postMessage(
       {
         type: "outpost/hass",
-        hassUrl,
-        token,
+        transport: "parent",
+        hassUrl: location.origin,
+        token: "parent",
         options: cfg,
       },
       "*",
     );
+  }
+
+  _onMsg(ev) {
+    const win = this._target();
+    if (!win || ev.source !== win) return;
+    const data = ev.data || {};
+    if (data.type === "outpost/ready" || data.type === "outpost/hass-ok") {
+      this._push();
+      if (data.type === "outpost/hass-ok" && this._beat) {
+        window.clearInterval(this._beat);
+        this._beat = null;
+      }
+      return;
+    }
+    if (data.type === "outpost/ha-sub") {
+      this._subscribe();
+      return;
+    }
+    if (data.type === "outpost/ha-unsub") {
+      this._unsubscribe();
+      return;
+    }
+    if (data.type === "outpost/ha-cmd") {
+      this._cmd(data.id, data.payload);
+    }
+  }
+
+  async _cmd(id, payload) {
+    const win = this._target();
+    if (!win || !this._hass) return;
+    try {
+      const result = await this._hass.connection.sendMessagePromise(payload);
+      win.postMessage({ type: "outpost/ha-res", id, result }, "*");
+    } catch (err) {
+      win.postMessage(
+        { type: "outpost/ha-res", id, error: err && err.message ? err.message : "Home Assistant call failed" },
+        "*",
+      );
+    }
+  }
+
+  async _subscribe() {
+    if (this._unsub || !this._hass) return;
+    try {
+      this._unsub = await this._hass.connection.subscribeEvents((event) => {
+        const win = this._target();
+        if (win) win.postMessage({ type: "outpost/ha-event", event }, "*");
+      }, "state_changed");
+    } catch (err) {
+      console.warn("outpost subscribe", err);
+    }
+  }
+
+  _unsubscribe() {
+    if (typeof this._unsub === "function") {
+      this._unsub();
+      this._unsub = null;
+    }
   }
 }
 

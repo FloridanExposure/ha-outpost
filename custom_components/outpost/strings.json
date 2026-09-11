@@ -1,0 +1,33 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Outpost Colony",
+        "description": "Adds a 3D colony to the sidebar. Your session loads every area and device — no long-lived token. After setup, open Configure to paste your published Outpost URL and pick domains."
+      }
+    },
+    "abort": {
+      "already_configured": "Outpost is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Outpost Colony",
+        "description": "Paste the published Outpost web URL (the Grok Share link, https). Leave empty only if you bundled the frontend under /outpost-static.",
+        "data": {
+          "frontend_url": "Outpost web URL",
+          "domains": "Domains to show as crew",
+          "one_per_device": "One astronaut per device",
+          "include_unassigned": "Include devices with no area (Core)",
+          "include_hidden": "Include hidden entities",
+          "include_diagnostics": "Include diagnostic entities",
+          "show_unavailable": "Show unavailable devices",
+          "battery_alert": "Wave when battery at or below (%)",
+          "max_per_area": "Max crew per room",
+          "skip_intro": "Skip the intro screen"
+        }
+      }
+    }
+  }
+}

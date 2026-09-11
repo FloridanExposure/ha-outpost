@@ -4,6 +4,22 @@ A Bot Crossing–style 3D map of your Home Assistant house. Areas become hex plo
 
 This is a **HACS integration**, not a Supervisor add-on. It adds **Outpost** to the sidebar, as a Lovelace **card**, or as a **full dashboard**. Your HA session loads every area and device. No long-lived token. No entity paste.
 
+## Updates
+
+HACS → Integrations → Outpost Colony → **Redownload** → restart HA.
+
+The 3D colony itself is the published Outpost URL. After I change that app, **Publish** it again so the iframe picks up new crew/sky/features. HACS version bumps are the sidebar/card wrapper.
+
+## Rollback
+
+GitHub keeps every push on [`FloridanExposure/ha-outpost`](https://github.com/FloridanExposure/ha-outpost). Each version is a commit. If something breaks:
+
+1. Open the repo → Commits
+2. Open the last good commit
+3. HACS redownload, or copy that `custom_components/outpost` folder back onto HA
+
+Do not force-push `main` unless you mean to rewrite history.
+
 ## Install
 
 1. Publish / host the Outpost 3D app (the Grok Share page works). Copy that `https://…` URL.

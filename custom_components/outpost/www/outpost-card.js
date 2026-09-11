@@ -75,9 +75,20 @@ class OutpostColonyCard extends HTMLElement {
   }
 
   _render() {
-    const height = Number(this._config.height) || 480;
+    const raw = this._config.height;
+    const tall = window.matchMedia("(max-width: 720px)").matches;
+    let heightPx = Number(raw);
+    if (raw === "full" || raw === "100%") {
+      this.style.height = "100dvh";
+    } else {
+      if (!Number.isFinite(heightPx) || heightPx <= 0) heightPx = tall ? Math.round(window.innerHeight * 0.72) : 520;
+      if (tall) heightPx = Math.max(320, Math.min(heightPx, Math.round(window.innerHeight * 0.86)));
+      this.style.height = `${heightPx}px`;
+    }
     this.style.display = "block";
-    this.style.height = Number.isFinite(height) ? `${height}px` : "480px";
+    this.style.touchAction = "none";
+    this.style.overflow = "hidden";
+    this.style.minHeight = "280px";
     this.innerHTML = "";
     this._iframe = mountIframe(this, this._src());
     this._iframe.addEventListener("load", () => pushHass(this._iframe, this._hass, this._options));

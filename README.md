@@ -2,7 +2,7 @@
 
 A Bot Crossing–style 3D map of your Home Assistant house. Areas become hex plots. Devices become astronauts. Crew wave when something needs you.
 
-This is a **HACS integration**, not a Supervisor add-on. It adds **Outpost** to the sidebar and uses your existing HA session. No long-lived access token. No entity paste.
+This is a **HACS integration**, not a Supervisor add-on. It adds **Outpost** to the sidebar, as a Lovelace **card**, or as a **full dashboard**. Your HA session loads every area and device. No long-lived token. No entity paste.
 
 ## Install
 
@@ -12,30 +12,47 @@ This is a **HACS integration**, not a Supervisor add-on. It adds **Outpost** to 
 3. HACS → Integrations → **Outpost Colony** → Download.
 4. Restart Home Assistant.
 5. Settings → Devices & services → Add integration → **Outpost Colony**.
-6. Configure → paste the Outpost web URL from step 1. Pick domains, density, battery threshold.
-7. Sidebar → **Outpost**.
+6. Configure → paste the Outpost web URL from step 1.
+7. Use it three ways:
 
-Manual install: copy `custom_components/outpost` into your HA `config/custom_components/` folder, restart, then add the integration.
+### Sidebar
+Sidebar → **Outpost**.
 
-## What loads
+### Card on any dashboard
+Add a card in YAML:
 
-Outpost reads the area, device, and entity registries plus live states.
+```yaml
+type: custom:outpost-colony-card
+url: https://YOUR-PUBLISHED-OUTPOST
+height: 520
+```
 
-- One astronaut per device (toggle off to show every entity)
-- Rooms = HA areas; leftover devices go to **Core**
-- Hidden / diagnostic entities stay off unless you turn them on
-- Cap crew per room so the colony does not melt
+If the card type is missing, add a Lovelace resource: `/outpost-static/outpost-card.js` as **module**, then refresh.
 
-Change any of that under **Configure**, or inside Outpost → gear → **Colony**.
+### Whole dashboard
+New view, enable **Panel mode**, one card:
 
-Toggles call `hass` services through the websocket (lights, switches, locks, vacuums, media, climate…).
+```yaml
+title: Outpost
+path: outpost
+icon: mdi:rocket-launch-outline
+panel: true
+cards:
+  - type: custom:outpost-colony-card
+    url: https://YOUR-PUBLISHED-OUTPOST
+    height: 900
+```
 
-## Why a separate web URL?
+## Customize
 
-The 3D scene (Three.js + astronaut models) is too heavy to ship as a tiny custom element. The integration is the HA bridge: session, registries, sidebar. The published Outpost page is the renderer. Together they are one product.
+Inside Outpost → gear:
 
-The chat preview of Outpost cannot be iframed. Use the **published** https page.
+- **Colony** — domains, one-per-device, hidden/diagnostics, battery wave, max crew per room
+- **Crew** — turn individual devices on/off (or “Hide from colony” on a selected astronaut)
+- **Look** — Luna / Orbit (moon + stars) / Mars / Terra, plus sky / ground / fog colors and star density
+
+Same filters live under HA → Outpost Colony → Configure.
 
 ## License
 
-MIT for the integration code. Astronaut / base models are Kay Lousberg CC0 (see the Outpost app credits).
+MIT for the integration code. Astronaut / base models are Kay Lousberg CC0.

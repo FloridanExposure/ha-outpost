@@ -3,10 +3,10 @@
   "name": "Outpost Colony",
   "codeowners": ["@FloridanExposure"],
   "config_flow": true,
-  "dependencies": ["http", "frontend", "panel_custom"],
+  "dependencies": ["http", "frontend", "panel_custom", "websocket_api"],
   "documentation": "https://github.com/FloridanExposure/ha-outpost",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/FloridanExposure/ha-outpost/issues",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

@@ -16,12 +16,13 @@ from .const import DEFAULT_OPTIONS, DOMAIN, PANEL_ICON, PANEL_PATH, PANEL_TITLE,
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[str] = []
-CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.4.0"
+CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.5.0"
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
     websocket_api.async_register_command(hass, ws_config)
+    websocket_api.async_register_command(hass, ws_save)
     return True
 
 
@@ -84,7 +85,7 @@ async def _async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None
         webcomponent_name="outpost-colony-panel",
         sidebar_title=opts.get("sidebar_title") or PANEL_TITLE,
         sidebar_icon=opts.get("sidebar_icon") or PANEL_ICON,
-        module_url=f"{STATIC_URL}/panel.js?v=0.4.0",
+        module_url=f"{STATIC_URL}/panel.js?v=0.5.0",
         embed_iframe=False,
         require_admin=False,
         config=_panel_config(opts),
@@ -103,6 +104,8 @@ def _panel_config(opts: dict) -> dict:
         "battery_alert": int(opts.get("battery_alert", 20)),
         "max_per_area": int(opts.get("max_per_area", 18)),
         "skip_intro": bool(opts.get("skip_intro", True)),
+        "hidden_ids": list(opts.get("hidden_ids") or []),
+        "area_overrides": dict(opts.get("area_overrides") or {}),
     }
 
 
@@ -112,4 +115,47 @@ def _panel_config(opts: dict) -> dict:
 def ws_config(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
     entry = hass.data.get(DOMAIN, {}).get("entry")
     opts = {**DEFAULT_OPTIONS, **(entry.options if entry else {})}
-    connection.send_result(msg["id"], _panel_config(opts))
+    payload = _panel_config(opts)
+    user = connection.user
+    payload["is_admin"] = bool(user and user.is_admin)
+    connection.send_result(msg["id"], payload)
+
+
+_SAVE_KEYS = {
+    "domains",
+    "one_per_device",
+    "include_unassigned",
+    "include_hidden",
+    "include_diagnostics",
+    "show_unavailable",
+    "battery_alert",
+    "max_per_area",
+    "skip_intro",
+    "hidden_ids",
+    "area_overrides",
+}
+
+
+@websocket_api.websocket_command({vol.Required("type"): "outpost/save", vol.Required("patch"): dict})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
+    entry = hass.data.get(DOMAIN, {}).get("entry")
+    if not entry:
+        connection.send_error(msg["id"], "not_found", "Outpost is not set up")
+        return
+    patch = msg.get("patch") or {}
+    next_opts = {**DEFAULT_OPTIONS, **entry.options}
+    for key, value in patch.items():
+        if key not in _SAVE_KEYS:
+            continue
+        next_opts[key] = value
+    if not isinstance(next_opts.get("hidden_ids"), list):
+        next_opts["hidden_ids"] = []
+    if not isinstance(next_opts.get("area_overrides"), dict):
+        next_opts["area_overrides"] = {}
+    hass.config_entries.async_update_entry(entry, options=next_opts)
+    payload = _panel_config(next_opts)
+    payload["is_admin"] = True
+    hass.bus.async_fire("outpost_updated", payload)
+    connection.send_result(msg["id"], payload)

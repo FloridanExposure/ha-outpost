@@ -34,4 +34,6 @@ DEFAULT_OPTIONS = {
     "battery_alert": 20,
     "max_per_area": 18,
     "skip_intro": True,
+    "hidden_ids": [],
+    "area_overrides": {},
 }

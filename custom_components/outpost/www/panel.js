@@ -7,6 +7,7 @@ class OutpostColonyPanel extends HTMLElement {
     this._panel = null;
     this._iframe = null;
     this._unsub = null;
+    this._unsubCfg = null;
     this._beat = null;
     this.attachShadow({ mode: "open" });
     window.addEventListener("message", (ev) => this._onMsg(ev));
@@ -69,7 +70,10 @@ class OutpostColonyPanel extends HTMLElement {
         transport: "parent",
         hassUrl: location.origin,
         token: "parent",
-        options: cfg,
+        options: {
+          ...cfg,
+          is_admin: Boolean(this._hass.user && this._hass.user.is_admin),
+        },
       },
       "*",
     );
@@ -115,14 +119,26 @@ class OutpostColonyPanel extends HTMLElement {
   }
 
   async _subscribe() {
-    if (this._unsub || !this._hass) return;
-    try {
-      this._unsub = await this._hass.connection.subscribeEvents((event) => {
-        const win = this._target();
-        if (win) win.postMessage({ type: "outpost/ha-event", event }, "*");
-      }, "state_changed");
-    } catch (err) {
-      console.warn("outpost subscribe", err);
+    if (!this._hass) return;
+    if (!this._unsub) {
+      try {
+        this._unsub = await this._hass.connection.subscribeEvents((event) => {
+          const win = this._target();
+          if (win) win.postMessage({ type: "outpost/ha-event", event }, "*");
+        }, "state_changed");
+      } catch (err) {
+        console.warn("outpost subscribe", err);
+      }
+    }
+    if (!this._unsubCfg) {
+      try {
+        this._unsubCfg = await this._hass.connection.subscribeEvents((event) => {
+          const win = this._target();
+          if (win) win.postMessage({ type: "outpost/config-event", options: event.data || {} }, "*");
+        }, "outpost_updated");
+      } catch (err) {
+        console.warn("outpost config subscribe", err);
+      }
     }
   }
 
@@ -130,6 +146,10 @@ class OutpostColonyPanel extends HTMLElement {
     if (typeof this._unsub === "function") {
       this._unsub();
       this._unsub = null;
+    }
+    if (typeof this._unsubCfg === "function") {
+      this._unsubCfg();
+      this._unsubCfg = null;
     }
   }
 }

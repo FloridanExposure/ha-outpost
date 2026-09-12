@@ -2,6 +2,10 @@
 
 Every GitHub commit is a backup. If a release breaks, HACS → Outpost Colony → ⋮ → Redownload an older commit, or revert on GitHub (`main` history).
 
+## 0.5.2
+
+Room pads stay put. Hiding or toggling crew no longer reshuffles the hex map.
+
 ## 0.5.1
 
 Turning crew off no longer reloads the Outpost sidebar. Roster saves stay in HA without tearing down the panel.

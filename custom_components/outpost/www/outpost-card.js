@@ -1,32 +1,14 @@
 const CARD = "outpost-colony-card";
 
-function mountIframe(host, src) {
-  const iframe = document.createElement("iframe");
-  iframe.setAttribute("allow", "fullscreen; autoplay");
-  iframe.src = src;
-  iframe.style.cssText =
-    "border:0;width:100%;height:100%;display:block;background:#0c1016;border-radius:12px;";
-  host.appendChild(iframe);
-  return iframe;
-}
-
-function pushHass(iframe, hass, options) {
-  if (!iframe || !iframe.contentWindow || !hass) return;
-  let token = "";
-  try {
-    token = hass.auth.data.access_token;
-  } catch {
-    return;
+function srcFrom(config, frontendUrl) {
+  const url = String((config && config.url) || frontendUrl || "").trim();
+  if (url) {
+    const clean = url.replace(/\/+$/, "");
+    const withScheme = clean.includes("://") ? clean : `https://${clean}`;
+    const sep = withScheme.includes("?") ? "&" : "?";
+    return `${withScheme}${sep}ha_panel=1`;
   }
-  iframe.contentWindow.postMessage(
-    {
-      type: "outpost/hass",
-      hassUrl: hass.hassUrl || location.origin,
-      token,
-      options: options || {},
-    },
-    "*",
-  );
+  return `${location.origin}/outpost-static/index.html?ha_panel=1`;
 }
 
 class OutpostColonyCard extends HTMLElement {
@@ -36,42 +18,33 @@ class OutpostColonyCard extends HTMLElement {
     this._hass = null;
     this._iframe = null;
     this._options = {};
+    this._unsub = null;
+    this._unsubCfg = null;
+    this._beat = null;
+    window.addEventListener("message", (ev) => this._onMsg(ev));
   }
 
   setConfig(config) {
     this._config = { height: 480, ...config };
-    if (this._iframe) {
-      this._iframe.src = this._src();
-    }
   }
 
   set hass(hass) {
     this._hass = hass;
     if (!this._iframe) this._render();
-    pushHass(this._iframe, hass, this._options);
+    this._push();
     if (!this._gotConfig) {
       this._gotConfig = true;
       hass.connection
         .sendMessagePromise({ type: "outpost/config" })
         .then((opts) => {
           this._options = opts || {};
-          if (!this._config.url && opts && opts.frontend_url) {
-            this._iframe.src = this._src(opts.frontend_url);
+          if (!this._config.url && opts && opts.frontend_url && this._iframe) {
+            this._iframe.src = srcFrom(this._config, opts.frontend_url);
           }
-          pushHass(this._iframe, hass, this._options);
+          this._push();
         })
         .catch(() => {});
     }
-  }
-
-  _src(frontendUrl) {
-    const url = String(this._config.url || frontendUrl || "").trim();
-    if (url) {
-      const clean = url.replace(/\/+$/, "");
-      const sep = clean.includes("?") ? "&" : "?";
-      return `${clean}${sep}ha_panel=1`;
-    }
-    return `${location.origin}/outpost-static/index.html?ha_panel=1`;
   }
 
   _render() {
@@ -81,7 +54,9 @@ class OutpostColonyCard extends HTMLElement {
     if (raw === "full" || raw === "100%") {
       this.style.height = "100dvh";
     } else {
-      if (!Number.isFinite(heightPx) || heightPx <= 0) heightPx = tall ? Math.round(window.innerHeight * 0.72) : 520;
+      if (!Number.isFinite(heightPx) || heightPx <= 0) {
+        heightPx = tall ? Math.round(window.innerHeight * 0.72) : 520;
+      }
       if (tall) heightPx = Math.max(320, Math.min(heightPx, Math.round(window.innerHeight * 0.86)));
       this.style.height = `${heightPx}px`;
     }
@@ -90,8 +65,87 @@ class OutpostColonyCard extends HTMLElement {
     this.style.overflow = "hidden";
     this.style.minHeight = "280px";
     this.innerHTML = "";
-    this._iframe = mountIframe(this, this._src());
-    this._iframe.addEventListener("load", () => pushHass(this._iframe, this._hass, this._options));
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("allow", "fullscreen; autoplay");
+    iframe.src = srcFrom(this._config);
+    iframe.style.cssText =
+      "border:0;width:100%;height:100%;display:block;background:#0c1016;border-radius:12px;";
+    iframe.addEventListener("load", () => this._push());
+    this.appendChild(iframe);
+    this._iframe = iframe;
+    this._beat = window.setInterval(() => this._push(), 1200);
+  }
+
+  _push() {
+    if (!this._iframe || !this._iframe.contentWindow || !this._hass) return;
+    this._iframe.contentWindow.postMessage(
+      {
+        type: "outpost/hass",
+        transport: "parent",
+        hassUrl: location.origin,
+        token: "parent",
+        options: {
+          ...(this._options || {}),
+          is_admin: Boolean(this._hass.user && this._hass.user.is_admin),
+        },
+      },
+      "*",
+    );
+  }
+
+  _onMsg(ev) {
+    if (!this._iframe || ev.source !== this._iframe.contentWindow) return;
+    const data = ev.data || {};
+    if (data.type === "outpost/ready" || data.type === "outpost/hass-ok") {
+      this._push();
+      if (data.type === "outpost/hass-ok" && this._beat) {
+        window.clearInterval(this._beat);
+        this._beat = null;
+      }
+      return;
+    }
+    if (data.type === "outpost/ha-sub") {
+      this._subscribe();
+      return;
+    }
+    if (data.type === "outpost/ha-cmd") {
+      this._cmd(data.id, data.payload);
+    }
+  }
+
+  async _cmd(id, payload) {
+    if (!this._iframe || !this._hass) return;
+    try {
+      const result = await this._hass.connection.sendMessagePromise(payload);
+      this._iframe.contentWindow.postMessage({ type: "outpost/ha-res", id, result }, "*");
+    } catch (err) {
+      this._iframe.contentWindow.postMessage(
+        { type: "outpost/ha-res", id, error: err && err.message ? err.message : "call failed" },
+        "*",
+      );
+    }
+  }
+
+  async _subscribe() {
+    if (!this._hass) return;
+    if (!this._unsub) {
+      this._unsub = await this._hass.connection.subscribeEvents((event) => {
+        if (this._iframe && this._iframe.contentWindow) {
+          this._iframe.contentWindow.postMessage({ type: "outpost/ha-event", event }, "*");
+        }
+      }, "state_changed");
+    }
+    if (!this._unsubCfg) {
+      this._unsubCfg = await this._hass.connection.subscribeEvents((event) => {
+        this._options = { ...(this._options || {}), ...(event.data || {}) };
+        if (this._iframe && this._iframe.contentWindow) {
+          this._iframe.contentWindow.postMessage(
+            { type: "outpost/config-event", options: event.data || {} },
+            "*",
+          );
+        }
+      }, "outpost_updated");
+    }
   }
 
   getCardSize() {
@@ -113,11 +167,3 @@ if (!customElements.get(CARD)) {
     preview: false,
   });
 }
-
-window.addEventListener("message", (ev) => {
-  if (ev.data && ev.data.type === "outpost/ready") {
-    document.querySelectorAll(CARD).forEach((el) => {
-      if (el._iframe && el._hass) pushHass(el._iframe, el._hass, el._options);
-    });
-  }
-});

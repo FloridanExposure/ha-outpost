@@ -2,6 +2,10 @@
 
 Every GitHub commit is a backup. If a release breaks, HACS → Outpost Colony → ⋮ → Redownload an older commit, or revert on GitHub (`main` history).
 
+## 0.5.1
+
+Turning crew off no longer reloads the Outpost sidebar. Roster saves stay in HA without tearing down the panel.
+
 ## 0.5.0
 
 Household admin owns the colony roster. Hide/filter/move crew is saved in Home Assistant and applies to every user. Non-admins can still look around and toggle devices they are allowed to control.

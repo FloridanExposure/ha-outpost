@@ -16,7 +16,7 @@ from .const import DEFAULT_OPTIONS, DOMAIN, PANEL_ICON, PANEL_PATH, PANEL_TITLE,
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[str] = []
-CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.5.0"
+CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.5.1"
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -29,6 +29,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN]["entry"] = entry
+    hass.data[DOMAIN]["panel_opts"] = {**DEFAULT_OPTIONS, **entry.options}
     await _async_register_static(hass)
     await _async_register_panel(hass, entry)
     await _async_register_lovelace(hass)
@@ -44,9 +45,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+_PANEL_KEYS = ("frontend_url", "sidebar_title", "sidebar_icon")
+
+
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Roster/hide saves must not tear down the sidebar iframe."""
     hass.data[DOMAIN]["entry"] = entry
-    await _async_register_panel(hass, entry)
+    opts = {**DEFAULT_OPTIONS, **entry.options}
+    prev = hass.data[DOMAIN].get("panel_opts") or {}
+    hass.data[DOMAIN]["panel_opts"] = opts
+    if any(prev.get(key) != opts.get(key) for key in _PANEL_KEYS):
+        await _async_register_panel(hass, entry)
 
 
 async def _async_register_static(hass: HomeAssistant) -> None:
@@ -85,7 +94,7 @@ async def _async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None
         webcomponent_name="outpost-colony-panel",
         sidebar_title=opts.get("sidebar_title") or PANEL_TITLE,
         sidebar_icon=opts.get("sidebar_icon") or PANEL_ICON,
-        module_url=f"{STATIC_URL}/panel.js?v=0.5.0",
+        module_url=f"{STATIC_URL}/panel.js?v=0.5.1",
         embed_iframe=False,
         require_admin=False,
         config=_panel_config(opts),

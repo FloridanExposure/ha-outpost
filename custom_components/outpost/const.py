@@ -36,4 +36,5 @@ DEFAULT_OPTIONS = {
     "skip_intro": True,
     "hidden_ids": [],
     "area_overrides": {},
+    "plot_origins": {},
 }

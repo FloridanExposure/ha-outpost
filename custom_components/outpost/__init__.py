@@ -16,7 +16,7 @@ from .const import DEFAULT_OPTIONS, DOMAIN, PANEL_ICON, PANEL_PATH, PANEL_TITLE,
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[str] = []
-CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.5.1"
+CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.5.2"
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -94,7 +94,7 @@ async def _async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None
         webcomponent_name="outpost-colony-panel",
         sidebar_title=opts.get("sidebar_title") or PANEL_TITLE,
         sidebar_icon=opts.get("sidebar_icon") or PANEL_ICON,
-        module_url=f"{STATIC_URL}/panel.js?v=0.5.1",
+        module_url=f"{STATIC_URL}/panel.js?v=0.5.2",
         embed_iframe=False,
         require_admin=False,
         config=_panel_config(opts),
@@ -115,6 +115,7 @@ def _panel_config(opts: dict) -> dict:
         "skip_intro": bool(opts.get("skip_intro", True)),
         "hidden_ids": list(opts.get("hidden_ids") or []),
         "area_overrides": dict(opts.get("area_overrides") or {}),
+        "plot_origins": dict(opts.get("plot_origins") or {}),
     }
 
 
@@ -142,6 +143,7 @@ _SAVE_KEYS = {
     "skip_intro",
     "hidden_ids",
     "area_overrides",
+    "plot_origins",
 }
 
 
@@ -163,6 +165,8 @@ async def ws_save(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
         next_opts["hidden_ids"] = []
     if not isinstance(next_opts.get("area_overrides"), dict):
         next_opts["area_overrides"] = {}
+    if not isinstance(next_opts.get("plot_origins"), dict):
+        next_opts["plot_origins"] = {}
     hass.config_entries.async_update_entry(entry, options=next_opts)
     payload = _panel_config(next_opts)
     payload["is_admin"] = True

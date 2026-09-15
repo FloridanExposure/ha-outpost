@@ -8,7 +8,7 @@ This is a **HACS integration**, not a Supervisor add-on. It adds **Outpost** to 
 
 HACS → Integrations → Outpost Colony → **Redownload** → restart HA.
 
-The 3D colony itself is the published Outpost URL. After I change that app, **Publish** it again so the iframe picks up new crew/sky/features. HACS version bumps are the sidebar/card wrapper.
+The 3D colony itself is the published Outpost URL. After I change that app, **Publish** it again so the iframe picks up new crew/sky/features (Govee MQTT, park waits, overhead planes, etc.). HACS version bumps are the sidebar/card wrapper.
 
 ## Rollback
 

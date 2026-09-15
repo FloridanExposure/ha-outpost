@@ -16,7 +16,7 @@ from .const import DEFAULT_OPTIONS, DOMAIN, PANEL_ICON, PANEL_PATH, PANEL_TITLE,
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[str] = []
-CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.5.2"
+CARD_URL = f"{STATIC_URL}/outpost-card.js?v=0.5.5"
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -94,7 +94,7 @@ async def _async_register_panel(hass: HomeAssistant, entry: ConfigEntry) -> None
         webcomponent_name="outpost-colony-panel",
         sidebar_title=opts.get("sidebar_title") or PANEL_TITLE,
         sidebar_icon=opts.get("sidebar_icon") or PANEL_ICON,
-        module_url=f"{STATIC_URL}/panel.js?v=0.5.2",
+        module_url=f"{STATIC_URL}/panel.js?v=0.5.5",
         embed_iframe=False,
         require_admin=False,
         config=_panel_config(opts),
